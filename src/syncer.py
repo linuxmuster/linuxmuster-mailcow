@@ -1,4 +1,11 @@
-import sys, os, string, time, datetime, logging, coloredlogs, random
+import sys
+import os
+import string
+import time
+import datetime
+import logging
+import coloredlogs
+import random
 import templateHelper
 
 from mailcowHelper import MailcowHelper, MailcowException
@@ -7,7 +14,9 @@ from objectStorageHelper import DomainListStorage, MailboxListStorage, AliasList
 from dockerapiHelper import DockerapiHelper
 from requests.exceptions import ConnectionError
 
-coloredlogs.install(level='INFO', fmt='%(asctime)s - [%(levelname)s] %(message)s')
+coloredlogs.install(
+    level='INFO', fmt='%(asctime)s - [%(levelname)s] %(message)s')
+
 
 class LinuxmusterMailcowSyncer:
 
@@ -22,13 +31,13 @@ class LinuxmusterMailcowSyncer:
         self._mailcow = MailcowHelper(
             self._config['API_URI'],
             self._config['API_KEY']
-            )
+        )
         self._ldap = LdapHelper(
-            self._config['LDAP_URI'], 
-            self._config['LDAP_BIND_DN'], 
-            self._config['LDAP_BIND_DN_PASSWORD'], 
+            self._config['LDAP_URI'],
+            self._config['LDAP_BIND_DN'],
+            self._config['LDAP_BIND_DN_PASSWORD'],
             self._config['LDAP_BASE_DN']
-            )
+        )
 
         self._dockerapi = DockerapiHelper(self._config["DOCKERAPI_URI"])
 
@@ -43,7 +52,7 @@ class LinuxmusterMailcowSyncer:
             else:
                 logging.info("=== Sync finished successfully ==")
                 interval = int(self._config['SYNC_INTERVAL'])
-            
+
             logging.info(f"sleeping {interval} seconds before next cycle")
             time.sleep(interval)
 
@@ -58,7 +67,8 @@ class LinuxmusterMailcowSyncer:
         logging.info("    * Loading users from AD")
         ret, adUsers = self._ldap.search(
             self.ldapUserFilter,
-            ["mail", "proxyAddresses", "sophomorixStatus", "sophomorixMailQuotaCalculated", "displayName"]
+            ["mail", "proxyAddresses", "sophomorixStatus",
+                "sophomorixMailQuotaCalculated", "displayName"]
         )
 
         if not ret:
@@ -68,7 +78,8 @@ class LinuxmusterMailcowSyncer:
         logging.info("    * Loading groups from AD")
         ret, adLists = self._ldap.search(
             self.ldapMailingListFilter,
-            ["mail", "distinguishedName", "sophomorixMailList", "sAMAccountName"]
+            ["mail", "proxyAddresses", "distinguishedName",
+                "sophomorixMailList", "sAMAccountName"]
         )
 
         if not ret:
@@ -98,7 +109,8 @@ class LinuxmusterMailcowSyncer:
             return False
         except ConnectionError as e:
             logging.error(e)
-            logging.critical("!!! A connection error occured, is mailcow still starting up? !!!")
+            logging.critical(
+                "!!! A connection error occured, is mailcow still starting up? !!!")
             return False
         except Exception as e:
             logging.exception("An exception occured: ", exc_info=e)
@@ -109,34 +121,25 @@ class LinuxmusterMailcowSyncer:
         for user in adUsers:
             mail = user["mail"]
             maildomain = mail.split("@")[-1]
-            aliases = []
-
-            if "proxyAddresses" in user:
-                if isinstance(user["proxyAddresses"], list):
-                    aliases = user["proxyAddresses"]
-                else:
-                    aliases = [user["proxyAddresses"]]
 
             if not self._addDomain(maildomain, mailcowDomains):
                 continue
 
             self._addMailbox(user, mailcowMailboxes)
-
-            if len(aliases) > 0:
-                for alias in aliases:
-                    self._addAlias(alias, mail, mailcowAliases)
+            self._addAliasesFromProxyAddresses(user, mail, mailcowAliases)
 
         for mailingList in adLists:
             if not mailingList["sophomorixMailList"] == "TRUE":
                 continue
-            
+
             mail = mailingList["mail"]
             maildomain = mail.split("@")[-1]
             ret, members = self._ldap.search(
-                self.ldapMailingListMemberFilter.replace("@@mailingListDn@@", mailingList["distinguishedName"]),
+                self.ldapMailingListMemberFilter.replace(
+                    "@@mailingListDn@@", mailingList["distinguishedName"]),
                 ["mail"]
             )
-            
+
             if not ret:
                 continue
 
@@ -149,38 +152,56 @@ class LinuxmusterMailcowSyncer:
                 "sophomorixMailQuotaCalculated": 1,
                 "displayName": mailingList["sAMAccountName"] + " (list)"
             }, mailcowMailboxes)
+            self._addAliasesFromProxyAddresses(
+                mailingList, mail, mailcowAliases)
 
-            self._addListFilter(mail, list(map(lambda x: x["mail"], members)), mailcowFilters)
+            self._addListFilter(mail, list(
+                map(lambda x: x["mail"], members)), mailcowFilters)
 
         if mailcowDomains.queuesAreEmpty() and mailcowMailboxes.queuesAreEmpty() and mailcowAliases.queuesAreEmpty() and mailcowFilters.queuesAreEmpty():
             logging.info("    * Everything up-to-date!")
             return True
         else:
             logging.info("* Found deltas:")
-            logging.info(f"    * {mailcowDomains.getQueueCountsString('domains')}")
-            logging.info(f"    * {mailcowMailboxes.getQueueCountsString('mailboxes')}")
-            logging.info(f"    * {mailcowAliases.getQueueCountsString('aliases')}")
-            logging.info(f"    * {mailcowFilters.getQueueCountsString('filters')}")
+            logging.info(
+                f"    * {mailcowDomains.getQueueCountsString('domains')}")
+            logging.info(
+                f"    * {mailcowMailboxes.getQueueCountsString('mailboxes')}")
+            logging.info(
+                f"    * {mailcowAliases.getQueueCountsString('aliases')}")
+            logging.info(
+                f"    * {mailcowFilters.getQueueCountsString('filters')}")
 
         logging.info("Step 4: Syncing deltas to Mailcow")
-        
+
         try:
-            self._mailcow.killElementsOfType("filter", mailcowFilters.killQueue())
-            self._mailcow.killElementsOfType("alias", mailcowAliases.killQueue())
-            self._mailcow.killElementsOfType("mailbox", mailcowMailboxes.killQueue())
-            self._mailcow.killElementsOfType("domain", mailcowDomains.killQueue())
+            self._mailcow.killElementsOfType(
+                "filter", mailcowFilters.killQueue())
+            self._mailcow.killElementsOfType(
+                "alias", mailcowAliases.killQueue())
+            self._mailcow.killElementsOfType(
+                "mailbox", mailcowMailboxes.killQueue())
+            self._mailcow.killElementsOfType(
+                "domain", mailcowDomains.killQueue())
 
-            self._mailcow.addElementsOfType("domain", mailcowDomains.addQueue())
-            self._mailcow.updateElementsOfType("domain", mailcowDomains.updateQueue())
+            self._mailcow.addElementsOfType(
+                "domain", mailcowDomains.addQueue())
+            self._mailcow.updateElementsOfType(
+                "domain", mailcowDomains.updateQueue())
 
-            self._mailcow.addElementsOfType("mailbox", mailcowMailboxes.addQueue())
-            self._mailcow.updateElementsOfType("mailbox", mailcowMailboxes.updateQueue())
+            self._mailcow.addElementsOfType(
+                "mailbox", mailcowMailboxes.addQueue())
+            self._mailcow.updateElementsOfType(
+                "mailbox", mailcowMailboxes.updateQueue())
 
             self._mailcow.addElementsOfType("alias", mailcowAliases.addQueue())
-            self._mailcow.updateElementsOfType("alias", mailcowAliases.updateQueue())
+            self._mailcow.updateElementsOfType(
+                "alias", mailcowAliases.updateQueue())
 
-            self._mailcow.addElementsOfType("filter", mailcowFilters.addQueue())
-            self._mailcow.updateElementsOfType("filter", mailcowFilters.updateQueue())
+            self._mailcow.addElementsOfType(
+                "filter", mailcowFilters.addQueue())
+            self._mailcow.updateElementsOfType(
+                "filter", mailcowFilters.updateQueue())
         except MailcowException:
             return False
 
@@ -191,7 +212,7 @@ class LinuxmusterMailcowSyncer:
         return mailcowDomains.addElement({
             "domain": domainName,
             "defquota": 1,
-            "maxquota": self._config['DOMAIN_QUOTA'], 
+            "maxquota": self._config['DOMAIN_QUOTA'],
             "quota": self._config['DOMAIN_QUOTA'],
             "description": DomainListStorage.validityCheckDescription,
             "active": 1,
@@ -199,31 +220,46 @@ class LinuxmusterMailcowSyncer:
             "mailboxes": 10000,
             "aliases": 10000,
             "gal": int(self._config['ENABLE_GAL'])
-            }, domainName)
+        }, domainName)
 
     def _addMailbox(self, user, mailcowMailboxes):
         mail = user["mail"]
         domain = mail.split("@")[-1]
         localPart = mail.split("@")[0]
-        password = ''.join(random.choices(string.ascii_letters + string.digits, k=20))
-        active = 0 if user["sophomorixStatus"] in ["L", "D", "R", "K", "F"] else 1
+        password = ''.join(random.choices(
+            string.ascii_letters + string.digits, k=20))
+        active = 0 if user["sophomorixStatus"] in [
+            "L", "D", "R", "K", "F"] else 1
         return mailcowMailboxes.addElement({
             "domain": domain,
             "local_part": localPart,
             "active": active,
             "quota": user["sophomorixMailQuotaCalculated"],
-            "password":password,
-            "password2":password,
+            "password": password,
+            "password2": password,
             "name": user["displayName"]
-            }, mail)
+        }, mail)
+
+    def _addAliasesFromProxyAddresses(self, user, mail, mailcowAliases):
+        aliases = []
+
+        if "proxyAddresses" in user:
+            if isinstance(user["proxyAddresses"], list):
+                aliases = user["proxyAddresses"]
+            else:
+                aliases = [user["proxyAddresses"]]
+
+        if len(aliases) > 0:
+            for alias in aliases:
+                self._addAlias(alias, mail, mailcowAliases)
 
     def _addAlias(self, alias, goto, mailcowAliases):
         mailcowAliases.addElement({
             "address": alias,
             "goto": goto,
             "active": 1,
-            "sogo_visible":1
-            }, alias)
+            "sogo_visible": 1
+        }, alias)
         pass
 
     def _addListFilter(self, listAddress, memberAddresses, mailcowFilters):
@@ -242,11 +278,11 @@ class LinuxmusterMailcowSyncer:
 
     def _readConfig(self):
         requiredConfigKeys = [
-            'LINUXMUSTER_MAILCOW_LDAP_URI', 
+            'LINUXMUSTER_MAILCOW_LDAP_URI',
             'LINUXMUSTER_MAILCOW_LDAP_BASE_DN',
-            'LINUXMUSTER_MAILCOW_LDAP_BIND_DN', 
+            'LINUXMUSTER_MAILCOW_LDAP_BIND_DN',
             'LINUXMUSTER_MAILCOW_LDAP_BIND_DN_PASSWORD',
-            'LINUXMUSTER_MAILCOW_API_KEY', 
+            'LINUXMUSTER_MAILCOW_API_KEY',
             'LINUXMUSTER_MAILCOW_SYNC_INTERVAL',
             'LINUXMUSTER_MAILCOW_DOMAIN_QUOTA',
             'LINUXMUSTER_MAILCOW_ENABLE_GAL'
@@ -266,18 +302,21 @@ class LinuxmusterMailcowSyncer:
 
         for configKey in requiredConfigKeys:
             if configKey not in os.environ:
-                sys.exit (f"Required environment value {configKey} is not set")
-            config[configKey.replace('LINUXMUSTER_MAILCOW_', '')] = os.environ[configKey]
+                sys.exit(f"Required environment value {configKey} is not set")
+            config[configKey.replace(
+                'LINUXMUSTER_MAILCOW_', '')] = os.environ[configKey]
 
         for configKey in allowedConfigKeys:
             if configKey in os.environ:
-                config[configKey.replace('LINUXMUSTER_MAILCOW_', '')] = os.environ[configKey]
+                config[configKey.replace(
+                    'LINUXMUSTER_MAILCOW_', '')] = os.environ[configKey]
 
         logging.info("CONFIG:")
         for key, value in config.items():
             logging.info("    * {:25}: {}".format(key, value))
 
         return config
+
 
 if __name__ == '__main__':
     try:
