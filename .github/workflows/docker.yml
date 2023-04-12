@@ -38,13 +38,13 @@ jobs:
         id: meta
         uses: docker/metadata-action@v4
         with:
-          images: ghcr.io/${{ github.repository }}s
-          tags: type=ref,event=tag
+          images: ghcr.io/${{ github.repository }}
 
-      - name: Build all docker container
+      - name: Build docker container
         uses: docker/build-push-action@v4
         with:
           context: .
           file: Dockerfile
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
