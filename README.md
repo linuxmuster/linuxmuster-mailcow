@@ -83,8 +83,8 @@ More details about the sync workflow can be found in SyncWorkflow.md
      - `LDAP-MAILCOW_API_URI` - mailcow API uri.
      - `LINUXMUSTER_MAILCOW_DOCKERAPI_URI` - dockerapi API uri.
 
-4. Start additional container: `docker-compose up -d linuxmuster-mailcow`
-5. Check logs `docker-compose logs -f linuxmuster-mailcow` (quit with ctrl+c). Please note: Connection errors are normal after all containers are started with `docker-compose up -d`.
+4. Start additional container: `docker compose up -d linuxmuster-mailcow`
+5. Check logs `docker compose logs -f linuxmuster-mailcow` (quit with ctrl+c). Please note: Connection errors are normal after all containers are started with `docker compose up -d`.
 6. For projects and classes, make sure to call `sophomorix-class -c test --maillist` / `sophomorix-project -p test --maillist`. Otherwise no maillist will be created!
 
 ## Limitations
