@@ -2,29 +2,29 @@
 
 Integration of Mailcow for Linuxmuster.net
 
-* [Maintainance Details](#maintainance-details)
-* [How does it work](#how-does-it-work)
-* [Usage](#usage)
-* [Limitations](#limitations)
-  * [WebUI and EAS authentication](#webui-and-eas-authentication)
-* [Disclaimer](#disclaimer)
+- [Maintainance Details](#maintainance-details)
+- [How does it work](#how-does-it-work)
+- [Usage](#usage)
+- [Limitations](#limitations)
+  - [WebUI and EAS authentication](#webui-and-eas-authentication)
+- [Disclaimer](#disclaimer)
 
 ## Maintainance Details
 
-Linuxmuster.net official | ❌ NO*
-:---: | :---: 
-[Community support](https://ask.linuxmuster.net) | ❌ No**
-Actively developed | ✅ YES
-Maintainer organisation |  Netzint GmbH  
-Primary maintainer | andreas.till@netzint.de  
-    
+|             Linuxmuster.net official             |         ❌ NO\*         |
+| :----------------------------------------------: | :---------------------: |
+| [Community support](https://ask.linuxmuster.net) |        ❌ No\*\*        |
+|                Actively developed                |         ✅ YES          |
+|             Maintainer organisation              |      Netzint GmbH       |
+|                Primary maintainer                | andreas.till@netzint.de |
+
 \* The linuxmuster community consits of people who are nice and happy to help. They are not directly involved in the development though, and might not be able to help in all cases.
-** The linuxmuster community consits of people who are nice and happy to help. They are not directly involved in the development though, and might not be able to help in any case.
+\*\* The linuxmuster community consits of people who are nice and happy to help. They are not directly involved in the development though, and might not be able to help in any case.
 
 ## How does it work
 
-A python script periodically syncs all linuxmuster accounts to mailcow. It also automatically creates aliases for user proxyAddress. 
-For projects and classes, it also creates a mailbox. These mailboxes have a quota of 1mb and get a filter which redirects all mails to their members. 
+A python script periodically syncs all linuxmuster accounts to mailcow. It also automatically creates aliases for user proxyAddress.
+For projects and classes, it also creates a mailbox. These mailboxes have a quota of 1mb and get a filter which redirects all mails to their members.
 Sogo and dovecot are configured automatically to authenticate against LDAP.  
 More details about the sync workflow can be found in SyncWorkflow.md
 
@@ -33,55 +33,55 @@ More details about the sync workflow can be found in SyncWorkflow.md
 1. Create an API key with read/write permissions from the Mailcow UI
 2. Create a file called `docker-compose.override.yml` in your mailcow directory with the following content:
 
-    ```yaml
-    version: '2.1'
-    services:
-        linuxmuster-mailcow:
-            image: netzint/linuxmuster-mailcow
-            container_name: mailcowcustomized_linuxmuster-mailcow
-            volumes:
-                - ./data/conf/dovecot:/conf/dovecot:rw
-                - ./data/conf/sogo:/conf/sogo:rw
-            depends_on:
-                - nginx-mailcow
-                - dockerapi-mailcow
-                - php-fpm-mailcow
-                - sogo-mailcow
-                - dovecot-mailcow
-            environment:
-                - LINUXMUSTER_MAILCOW_LDAP_URI=ldap://10.0.0.1
-                - LINUXMUSTER_MAILCOW_LDAP_BASE_DN=DC=linuxmuster,DC=lan
-                - LINUXMUSTER_MAILCOW_LDAP_BIND_DN=CN=global-binduser,OU=Management,OU=GLOBAL,DC=linuxmuster,DC=lan
-                - LINUXMUSTER_MAILCOW_LDAP_BIND_DN_PASSWORD=<YOUR-PASSWORD>
-                - LINUXMUSTER_MAILCOW_API_KEY=<YOUR-API-KEY>
-                - LINUXMUSTER_MAILCOW_SYNC_INTERVAL=300
-                - LINUXMUSTER_MAILCOW_DOMAIN_QUOTA=20000
-                - LINUXMUSTER_MAILCOW_ENABLE_GAL=1
-            networks:
-                mailcow-network:
-                    aliases:
-                        - linuxmuster
-        sogo-mailcow:
-            volumes:
-                - ./data/conf/sogo/ldap.conf:/etc/ldap/ldap.conf:rw
-        dovecot-mailcow:
-            volumes:
-                - ./data/conf/sogo/ldap.conf:/etc/ldap/ldap.conf:rw
-    ```
+   ```yaml
+   version: "2.1"
+   services:
+     linuxmuster-mailcow:
+       image: ghcr.io/linuxmuster/linuxmuster-mailcow:latest
+       container_name: mailcowcustomized_linuxmuster-mailcow
+       volumes:
+         - ./data/conf/dovecot:/conf/dovecot:rw
+         - ./data/conf/sogo:/conf/sogo:rw
+       depends_on:
+         - nginx-mailcow
+         - dockerapi-mailcow
+         - php-fpm-mailcow
+         - sogo-mailcow
+         - dovecot-mailcow
+       environment:
+         - LINUXMUSTER_MAILCOW_LDAP_URI=ldap://10.0.0.1
+         - LINUXMUSTER_MAILCOW_LDAP_BASE_DN=DC=linuxmuster,DC=lan
+         - LINUXMUSTER_MAILCOW_LDAP_BIND_DN=CN=global-binduser,OU=Management,OU=GLOBAL,DC=linuxmuster,DC=lan
+         - LINUXMUSTER_MAILCOW_LDAP_BIND_DN_PASSWORD=<YOUR-PASSWORD>
+         - LINUXMUSTER_MAILCOW_API_KEY=<YOUR-API-KEY>
+         - LINUXMUSTER_MAILCOW_SYNC_INTERVAL=300
+         - LINUXMUSTER_MAILCOW_DOMAIN_QUOTA=20000
+         - LINUXMUSTER_MAILCOW_ENABLE_GAL=1
+       networks:
+         mailcow-network:
+           aliases:
+             - linuxmuster
+     sogo-mailcow:
+       volumes:
+         - ./data/conf/sogo/ldap.conf:/etc/ldap/ldap.conf:rw
+     dovecot-mailcow:
+       volumes:
+         - ./data/conf/sogo/ldap.conf:/etc/ldap/ldap.conf:rw
+   ```
 
 3. Configure environmental variables:
 
-    * `LDAP-LINUXMUSTER_MAILCOW_LDAP_URI` - Uri of the Linuxmuster.net server (must be reachable from within the container). The URIs are in syntax `protocol://host:port`. For example `ldap://localhost` or `ldaps://secure.domain.org`
-    * `LINUXMUSTER_MAILCOW_LDAP_BASE_DN` - base DN of the AD
-    * `LINUXMUSTER_MAILCOW_LDAP_BIND_DN` - bind DN of a special LDAP account that will be used to browse for users
-    * `LINUXMUSTER_MAILCOW_LDAP_BIND_DN_PASSWORD` - password for bind DN account
-    * `LINUXMUSTER_MAILCOW_API_KEY` - mailcow API key (read/write)
-    * `LINUXMUSTER_MAILCOW_SYNC_INTERVAL` - interval in seconds between LDAP synchronizations
-    * `LINUXMUSTER_MAILCOW_DOMAIN_QUOTA` - total quota of one domain. CAUTION! If this is not enough to fit all mailboxes the import will fail!!
-    * `LINUXMUSTER_MAILCOW_ENABLE_GAL` - whether to enable the global addressbook
-    * **Optional**  Only use these if you know what you are doing! They are not required for normal operation!
-        * `LDAP-MAILCOW_API_URI` - mailcow API uri.
-        * `LINUXMUSTER_MAILCOW_DOCKERAPI_URI` - dockerapi API uri.
+   - `LDAP-LINUXMUSTER_MAILCOW_LDAP_URI` - Uri of the Linuxmuster.net server (must be reachable from within the container). The URIs are in syntax `protocol://host:port`. For example `ldap://localhost` or `ldaps://secure.domain.org`
+   - `LINUXMUSTER_MAILCOW_LDAP_BASE_DN` - base DN of the AD
+   - `LINUXMUSTER_MAILCOW_LDAP_BIND_DN` - bind DN of a special LDAP account that will be used to browse for users
+   - `LINUXMUSTER_MAILCOW_LDAP_BIND_DN_PASSWORD` - password for bind DN account
+   - `LINUXMUSTER_MAILCOW_API_KEY` - mailcow API key (read/write)
+   - `LINUXMUSTER_MAILCOW_SYNC_INTERVAL` - interval in seconds between LDAP synchronizations
+   - `LINUXMUSTER_MAILCOW_DOMAIN_QUOTA` - total quota of one domain. CAUTION! If this is not enough to fit all mailboxes the import will fail!!
+   - `LINUXMUSTER_MAILCOW_ENABLE_GAL` - whether to enable the global addressbook
+   - **Optional** Only use these if you know what you are doing! They are not required for normal operation!
+     - `LDAP-MAILCOW_API_URI` - mailcow API uri.
+     - `LINUXMUSTER_MAILCOW_DOCKERAPI_URI` - dockerapi API uri.
 
 4. Start additional container: `docker-compose up -d linuxmuster-mailcow`
 5. Check logs `docker-compose logs -f linuxmuster-mailcow` (quit with ctrl+c). Please note: Connection errors are normal after all containers are started with `docker-compose up -d`.
