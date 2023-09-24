@@ -20,8 +20,8 @@ coloredlogs.install(
 
 class LinuxmusterMailcowSyncer:
 
-    ldapSogoUserFilter = "(sophomorixRole='student' OR sophomorixRole='teacher' OR sophomorixRole='schooladministrator')"
-    ldapUserFilter = "(|(sophomorixRole=student)(sophomorixRole=teacher)(sophomorixRole=schooladministrator))"
+    ldapSogoUserFilter = "(sophomorixRole='student' OR sophomorixRole='teacher')"
+    ldapUserFilter = "(|(sophomorixRole=student)(sophomorixRole=teacher))"
     ldapMailingListFilter = "(|(sophomorixType=adminclass)(sophomorixType=project))"
     ldapMailingListMemberFilter = f"(&(memberof:1.2.840.113556.1.4.1941:=@@mailingListDn@@){ldapUserFilter})"
 
