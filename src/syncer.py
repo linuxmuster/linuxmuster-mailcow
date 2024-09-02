@@ -78,7 +78,7 @@ class LinuxmusterMailcowSyncer:
         logging.info("    * Loading groups from AD")
         ret, adLists = self._ldap.search(
             self.ldapMailingListFilter,
-            ["mail", "proxyAddresses", "distinguishedName",
+            ["mail", "proxyAddresses", "distinguishedName", "description",
                 "sophomorixMailList", "sAMAccountName"]
         )
 
@@ -133,6 +133,9 @@ class LinuxmusterMailcowSyncer:
                 continue
 
             mail = mailingList["mail"]
+            if mail.startswith("p_"):
+                mail = mail[2:]
+            desc = mailingList["description"]
             maildomain = mail.split("@")[-1]
             ret, members = self._ldap.search(
                 self.ldapMailingListMemberFilter.replace(
@@ -150,13 +153,13 @@ class LinuxmusterMailcowSyncer:
                 "mail": mail,
                 "sophomorixStatus": "U",
                 "sophomorixMailQuotaCalculated": 1,
-                "displayName": mailingList["sAMAccountName"] + " (list)"
+                "displayName": "Verteiler " + desc
             }, mailcowMailboxes)
             self._addAliasesFromProxyAddresses(
                 mailingList, mail, mailcowAliases)
 
             self._addListFilter(mail, list(
-                map(lambda x: x["mail"], members)), mailcowFilters)
+                map(lambda x: x["mail"], members)), desc, mailcowFilters)
 
         if mailcowDomains.queuesAreEmpty() and mailcowMailboxes.queuesAreEmpty() and mailcowAliases.queuesAreEmpty() and mailcowFilters.queuesAreEmpty():
             logging.info("    * Everything up-to-date!")
@@ -262,9 +265,19 @@ class LinuxmusterMailcowSyncer:
         }, alias)
         pass
 
-    def _addListFilter(self, listAddress, memberAddresses, mailcowFilters):
+    def _addListFilter(self, listAddress, memberAddresses, description, mailcowFilters):
         scriptData = "### Auto-generated mailinglist filter by linuxmuster ###\r\n\r\n"
-        scriptData += "require \"copy\";\r\n\r\n"
+        scriptData += "require \"editheader\";\r\n"
+        scriptData += "require \"copy\";\r\n"
+        scriptData += "require \"variables\";\r\n"
+        scriptData += "set \"addendum\" \""+description+"\";\r\n"
+        scriptData += "# Match the entire subject ...\r\n"
+        scriptData += "if header :matches \"Subject\" \"*\" {\r\n"
+        scriptData += "            # ... to get it in a match group that can then be stored in a variable:\r\n"
+        scriptData += "            set \"subject\" \"${1}\";\r\n"
+        scriptData += "        }\r\n"
+        scriptData += "deleteheader \"Subject\";\r\n"
+        scriptData += "addheader :last \"Subject\" \"[${addendum}] ${subject}\";\r\n"
         for memberAddress in memberAddresses:
             scriptData += f"redirect :copy \"{memberAddress}\";\r\n"
         scriptData += "\r\ndiscard;stop;"
@@ -289,6 +302,8 @@ class LinuxmusterMailcowSyncer:
         ]
 
         allowedConfigKeys = [
+            "LINUXMUSTER_MAILCOW_LDAP_SOGO_USER_FILTER",
+            "LINUXMUSTER_MAILCOW_LDAP_USER_FILTER",
             "LINUXMUSTER_MAILCOW_DOCKERAPI_URI",
             "LINUXMUSTER_MAILCOW_API_URI"
         ]
