@@ -20,10 +20,8 @@ coloredlogs.install(
 
 class LinuxmusterMailcowSyncer:
 
-    #ldapSogoUserFilter = "(sophomorixRole='student' OR sophomorixRole='teacher')"
-    ldapSogoUserFilter = "( sophomorixRole='teacher')"
-    #ldapUserFilter = "(|(sophomorixRole=student)(sophomorixRole=teacher))"
-    ldapUserFilter = "(sophomorixRole=teacher)"
+    ldapSogoUserFilter = "(sophomorixRole='student' OR sophomorixRole='teacher')"
+    ldapUserFilter = "(|(sophomorixRole=student)(sophomorixRole=teacher))"
     ldapMailingListFilter = "(|(sophomorixType=adminclass)(sophomorixType=project))"
     ldapMailingListMemberFilter = f"(&(memberof:1.2.840.113556.1.4.1941:=@@mailingListDn@@){ldapUserFilter})"
 
@@ -80,7 +78,7 @@ class LinuxmusterMailcowSyncer:
         logging.info("    * Loading groups from AD")
         ret, adLists = self._ldap.search(
             self.ldapMailingListFilter,
-            ["mail", "proxyAddresses", "distinguishedName",
+            ["mail", "proxyAddresses", "distinguishedName", "description",
                 "sophomorixMailList", "sAMAccountName"]
         )
 
@@ -135,7 +133,8 @@ class LinuxmusterMailcowSyncer:
                 continue
 
             mail = mailingList["mail"]
-            mail = mail[2:] if mail.startswith("p_")
+            if mail.startswith("p_"):
+                mail = mail[2:]
             desc = mailingList["description"]
             maildomain = mail.split("@")[-1]
             ret, members = self._ldap.search(
@@ -282,7 +281,6 @@ class LinuxmusterMailcowSyncer:
         for memberAddress in memberAddresses:
             scriptData += f"redirect :copy \"{memberAddress}\";\r\n"
         scriptData += "\r\ndiscard;stop;"
-        print(scriptData)
         mailcowFilters.addElement({
             'active': 1,
             'username': listAddress,
@@ -304,6 +302,8 @@ class LinuxmusterMailcowSyncer:
         ]
 
         allowedConfigKeys = [
+            "LINUXMUSTER_MAILCOW_LDAP_SOGO_USER_FILTER",
+            "LINUXMUSTER_MAILCOW_LDAP_USER_FILTER",
             "LINUXMUSTER_MAILCOW_DOCKERAPI_URI",
             "LINUXMUSTER_MAILCOW_API_URI"
         ]
