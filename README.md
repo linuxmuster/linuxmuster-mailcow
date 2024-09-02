@@ -74,8 +74,11 @@ More details about the sync workflow can be found in SyncWorkflow.md
    - `LINUXMUSTER_MAILCOW_DOMAIN_QUOTA` - total quota of one domain. CAUTION! If this is not enough to fit all mailboxes the import will fail!!
    - `LINUXMUSTER_MAILCOW_ENABLE_GAL` - whether to enable the global addressbook
    - **Optional** Only use these if you know what you are doing! They are not required for normal operation!
-     - `LDAP-MAILCOW_API_URI` - mailcow API uri.
+     - `LINUXMUSTER_MAILCOW_API_URI` - mailcow API uri.
      - `LINUXMUSTER_MAILCOW_DOCKERAPI_URI` - dockerapi API uri.
+     - `LINUXMUSTER_MAILCOW_LDAP_USER_FILTER` - users that get mail accounts, default is teachers and students, set to `"(sophomorixRole=teacher)"` to restrict to teachers
+     - `LINUXMUSTER_MAILCOW_LDAP_SOGO_USER_FILTER` - users that are allowed to use SOGo, defaults to teachers or students, set to `"(sophomorixRole='teacher')"` to restrict to teachers
+
 
 4. Start additional container: `docker compose up -d linuxmuster-mailcow`
 5. Check logs `docker compose logs -f linuxmuster-mailcow` (quit with ctrl+c). Please note: Connection errors are normal after all containers are started with `docker compose up -d`.
