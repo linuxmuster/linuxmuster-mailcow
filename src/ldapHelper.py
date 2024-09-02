@@ -9,6 +9,8 @@ class LdapHelper:
 
     def bind(self):
         try:
+            # uncomment to disable CERT-Check on LDAP-Server
+            #ldap.set_option(ldap.OPT_X_TLS_REQUIRE_CERT, ldap.OPT_X_TLS_NEVER)
             self._ldapConnection = ldap.initialize(f"{self._uri}")
             self._ldapConnection.set_option(ldap.OPT_REFERRALS, 0)
             self._ldapConnection.simple_bind_s(self._bindDn, self._bindPassword)
